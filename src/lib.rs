@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::num::NonZeroUsize;
 
 /// Input signal
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,21 +41,19 @@ pub trait QueueSender<E> {
     fn send(&self, signal: Signal) -> Result<(), E>;
 }
 
-
 /// Debounced FSM: transitions state only after N consecutive
 /// identical signals that differ from the current state.
 pub struct Fsm<E, Q: QueueSender<E>> {
     state: State,
-    threshold: usize,        // N — number of consecutive signals required for transition
-    counter: usize,           // current counter of consecutive matching signals
-    pending: Option<Signal>,  // which signal we are currently counting
+    threshold: NonZeroUsize, // N — number of consecutive signals required for transition
+    counter: usize,          // current counter of consecutive matching signals
+    pending: Option<Signal>, // which signal we are currently counting
     queue_tx: Q,
     _phantom: PhantomData<E>,
 }
 
 impl<E, Q: QueueSender<E>> Fsm<E, Q> {
-    pub fn new(threshold: usize, queue_tx: Q) -> Self {
-        assert!(threshold > 0, "N must be > 0");
+    pub fn new(threshold: NonZeroUsize, queue_tx: Q) -> Self {
         Fsm {
             state: State::Off,
             threshold,
@@ -84,14 +83,13 @@ impl<E, Q: QueueSender<E>> Fsm<E, Q> {
                 self.counter = 1;
             }
 
-            if self.counter >= self.threshold {
+            if self.counter >= self.threshold.get() {
                 // Transition state and send a message to the queue
                 self.state = self.state.toggle();
                 self.counter = 0;
                 self.pending = None;
 
-                self.queue_tx
-                    .send(signal)?;
+                self.queue_tx.send(signal)?;
             }
 
             Ok(())
@@ -103,4 +101,3 @@ impl<E, Q: QueueSender<E>> Fsm<E, Q> {
         }
     }
 }
-

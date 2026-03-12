@@ -75,7 +75,7 @@ Only `3` consecutive `Off` signals can switch it back to `Off`.
 The FSM stores:
 
 - current state: `State::Off` or `State::On`
-- threshold `N`
+- threshold `N` (as `NonZeroUsize`)
 - current counter of consecutive opposite signals
 - pending signal currently being counted
 - a generic `QueueSender` implementation used as the queue output
@@ -100,7 +100,7 @@ The crate exposes:
 
 Main methods:
 
-- `Fsm::new(threshold, sender)` — creates a new FSM; `threshold` must be greater than `0`; `sender` is any type implementing `QueueSender<E>`
+- `Fsm::new(threshold, sender)` — creates a new FSM; `threshold` is a `NonZeroUsize`, guaranteeing `N > 0` at the type level; `sender` is any type implementing `QueueSender<E>`
 - `Fsm::handle(signal)` — processes one input signal; returns `Result<(), E>`
 - `Fsm::state()` — returns the current state
 
@@ -126,9 +126,7 @@ impl QueueSender<crossbeam_channel::SendError<Signal>> for CrossbeamSender {
 
 ## Failure behavior
 
-`Fsm::new()` panics if `threshold == 0`.
-
-This is intentional because the task requires `N > 0`.
+The `threshold` parameter of `Fsm::new()` is typed as `NonZeroUsize`, so a zero value is rejected at compile time (or at the `NonZeroUsize` construction site). The FSM itself contains no `assert!` or `panic!` calls.
 
 `Fsm::handle()` returns `Result<(), E>`. If the underlying `QueueSender::send()` fails during a state transition, the error is propagated to the caller.
 
@@ -141,8 +139,7 @@ They verify:
 - no transition when the signal matches the current state;
 - exact-threshold behavior;
 - counter reset on interruption;
-- multiple state transitions;
-- panic on invalid threshold.
+- multiple state transitions.
 
 Run tests with:
 
